@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f7f4">
+  <meta name="description" content="Tu memoria personal de lugares y viajes.">
+  <title>Memoria de Viajes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="Memoria de Viajes, inicio">
+        <span class="brand-mark">⌖</span>
+        <span><strong>Memoria</strong><small>DE VIAJES</small></span>
+      </a>
+      <div class="sidebar-label">TU ESPACIO</div>
+      <nav class="side-nav" aria-label="Navegación principal">
+        <button class="nav-item active" data-view="nearby"><span>⌖</span> Qué tengo cerca</button>
+        <button class="nav-item" data-view="places"><span>▣</span> Mis sitios</button>
+        <button class="nav-item" data-view="discover"><span>✧</span> Descubrir cerca</button>
+        <button class="nav-item" data-view="cities"><span>▦</span> Mis ciudades</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="demo-note"><span class="status-dot"></span><div><strong>Modo demostración</strong><small>Los datos no se guardan todavía</small></div></div>
+        <button class="nav-item" data-view="settings"><span>⚙</span> Configuración</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-brand" data-view="nearby"><span class="brand-mark">⌖</span><strong>Memoria de Viajes</strong></button>
+        <div class="topbar-spacer"></div>
+        <div class="demo-pill"><span class="status-dot"></span> DEMO</div>
+        <div class="avatar" title="Perfil de demostración">F</div>
+      </header>
+
+      <section class="view active" id="view-nearby">
+        <div class="welcome-row">
+          <div>
+            <p class="eyebrow">TU MEMORIA GEOGRÁFICA</p>
+            <h1>¿Qué tienes cerca?</h1>
+            <p class="muted">Recupera tus buenos descubrimientos estés donde estés.</p>
+          </div>
+          <button class="primary-btn" id="locate-btn"><span>⌖</span> Usar mi ubicación</button>
+        </div>
+        <div class="location-banner">
+          <div class="location-icon">⌖</div>
+          <div class="location-copy"><span class="small-label">UBICACIÓN DE PRUEBA</span><strong id="location-name">Valencia, España</strong><small id="location-status">Ejemplo para probar la aplicación. Activa tu GPS cuando quieras.</small></div>
+          <button class="text-btn" id="reset-demo-location">Volver al ejemplo</button>
+        </div>
+        <div class="section-heading">
+          <div><h2>Buscar en mis recuerdos</h2><p class="muted">Elige qué tipo de lugar quieres encontrar.</p></div>
+          <label class="radius-control">Radio
+            <select id="radius-select" aria-label="Radio de búsqueda">
+              <option value="1">1 km</option><option value="3">3 km</option><option value="5" selected>5 km</option><option value="10">10 km</option><option value="20">20 km</option>
+            </select>
+          </label>
+        </div>
+        <div class="category-grid" id="nearby-categories">
+          <button class="category-card" data-category="comer"><span class="category-icon green">♨</span><strong>Comer</strong><small>Restaurantes y bares</small></button>
+          <button class="category-card" data-category="cafe"><span class="category-icon amber">☕</span><strong>Desayunar</strong><small>Cafeterías y panaderías</small></button>
+          <button class="category-card" data-category="dormir"><span class="category-icon blue">⌂</span><strong>Dormir</strong><small>Hoteles y alojamientos</small></button>
+          <button class="category-card" data-category="comprar"><span class="category-icon violet">▤</span><strong>Comprar</strong><small>Tiendas y centros comerciales</small></button>
+          <button class="category-card" data-category="gasolinera"><span class="category-icon coral">⛽</span><strong>Gasolineras</strong><small>Paradas y repostaje</small></button>
+          <button class="category-card" data-category="otros"><span class="category-icon slate">＋</span><strong>Otros</strong><small>Todos los demás sitios</small></button>
+        </div>
+        <div class="section-heading results-heading"><div><h2 id="nearby-title">Lugares guardados cerca</h2><p class="muted" id="nearby-subtitle">Ejemplos ficticios en Valencia para explorar el funcionamiento.</p></div><button class="outline-btn" id="show-all-nearby">Ver todos</button></div>
+        <div class="place-list" id="nearby-results"></div>
+      </section>
+
+      <section class="view" id="view-places">
+        <div class="page-heading"><div><p class="eyebrow">TU COLECCIÓN PERSONAL</p><h1>Mis sitios</h1><p class="muted">Todos los lugares que quieres recordar.</p></div><button class="primary-btn" id="add-place-top">＋ Guardar un lugar</button></div>
+        <div class="toolbar"><label class="search-box"><span>⌕</span><input id="place-search" type="search" placeholder="Buscar por nombre, ciudad o comentario…"></label><select id="place-category-filter"><option value="all">Todas las categorías</option><option value="comer">Comer</option><option value="cafe">Desayunar</option><option value="dormir">Dormir</option><option value="comprar">Comprar</option><option value="gasolinera">Gasolineras</option><option value="otros">Otros</option></select></div>
+        <div class="summary-strip" id="places-summary"></div>
+        <div class="place-list" id="all-places"></div>
+      </section>
+
+      <section class="view" id="view-discover">
+        <div class="page-heading"><div><p class="eyebrow">NUEVOS DESCUBRIMIENTOS</p><h1>Descubrir cerca</h1><p class="muted">Encuentra establecimientos que todavía no has guardado.</p></div></div>
+        <div class="discover-panel"><div class="discover-symbol">✧</div><div><h2>Descubre algo nuevo</h2><p>Esta sección buscará establecimientos reales alrededor de tu ubicación. En esta primera maqueta dejamos preparada la pantalla; conectaremos la fuente de búsqueda en la siguiente fase.</p><button class="primary-btn" id="discover-location-btn">⌖ Detectar mi ubicación</button></div></div>
+        <div class="info-card"><strong>Una diferencia importante</strong><p>Los resultados de «Descubrir cerca» serán sugerencias externas. No se mezclarán con «Mis sitios» hasta que decidas guardar un establecimiento.</p></div>
+      </section>
+
+      <section class="view" id="view-cities">
+        <div class="page-heading"><div><p class="eyebrow">RECUERDOS ORDENADOS</p><h1>Mis ciudades</h1><p class="muted">Vuelve a encontrar tus lugares por localidad.</p></div></div>
+        <div class="city-grid" id="city-list"></div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <div class="page-heading"><div><p class="eyebrow">PREFERENCIAS</p><h1>Configuración</h1><p class="muted">Así funcionará tu espacio personal.</p></div></div>
+        <div class="settings-card"><div class="settings-row"><div><strong>Cuenta familiar</strong><p>Cada familiar tendrá su propia cuenta y sus propios lugares privados.</p></div><span class="setting-tag">Individual</span></div><div class="settings-row"><div><strong>Ubicación</strong><p>Solo se solicitará cuando pulses «Usar mi ubicación».</p></div><span class="setting-tag">Bajo demanda</span></div><div class="settings-row"><div><strong>Almacenamiento</strong><p>En esta demo los cambios solo viven mientras la página está abierta. Firebase se conectará más adelante.</p></div><span class="setting-tag warning">Temporal</span></div><div class="settings-row"><div><strong>Fotografías</strong><p>No se utilizarán fotografías ni almacenamiento de imágenes.</p></div><span class="setting-tag">Desactivadas</span></div></div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Navegación móvil">
+    <button class="active" data-view="nearby"><span>⌖</span><small>Cerca</small></button>
+    <button data-view="places"><span>▣</span><small>Mis sitios</small></button>
+    <button data-view="discover"><span>✧</span><small>Descubrir</small></button>
+    <button data-view="cities"><span>▦</span><small>Ciudades</small></button>
+  </nav>
+
+  <dialog id="place-dialog" class="place-dialog">
+    <form id="place-form">
+      <div class="dialog-header"><div><p class="eyebrow">AÑADIR A TUS RECUERDOS</p><h2>Guardar un lugar</h2></div><button type="button" class="close-btn" id="close-dialog" aria-label="Cerrar">×</button></div>
+      <label>Nombre del lugar<input name="name" required maxlength="90" placeholder="Ej. Cafetería La Plaza"></label>
+      <label>¿Qué tipo de lugar es?
+        <select name="category" required><option value="comer">Comer</option><option value="cafe">Desayunar / café</option><option value="dormir">Dormir</option><option value="comprar">Comprar</option><option value="gasolinera">Gasolinera</option><option value="otros">Otros</option></select>
+      </label>
+      <label>Ciudad<input name="city" required placeholder="Ej. Valencia"></label>
+      <label>Dirección (opcional)<input name="address" placeholder="Calle, número…"></label>
+      <div class="form-two"><label>Latitud<input name="lat" type="number" step="any" placeholder="Coordenada GPS"></label><label>Longitud<input name="lng" type="number" step="any" placeholder="Coordenada GPS"></label></div>
+      <button type="button" class="outline-btn full-width" id="use-current-location">⌖ Usar mi ubicación actual</button>
+      <label>¿Qué te pareció?
+        <select name="rating"><option value="like">Me gustó</option><option value="ok">Normal</option><option value="dislike">No volvería</option></select>
+      </label>
+      <label>Comentario personal<textarea name="notes" rows="3" maxlength="500" placeholder="Qué te gustó, qué pediste, algún detalle para recordarlo…"></textarea></label>
+      <div class="dialog-actions"><button type="button" class="outline-btn" id="cancel-dialog">Cancelar</button><button type="submit" class="primary-btn">Guardar en mis sitios</button></div>
+      <p class="form-footnote">Demostración: el lugar se añadirá temporalmente y desaparecerá al recargar la página.</p>
+    </form>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
