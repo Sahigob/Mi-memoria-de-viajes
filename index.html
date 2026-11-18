@@ -9,7 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./map-features.css">
 </head>
 <body>
   <div class="app-shell">
@@ -119,12 +121,15 @@
       <label>¿Qué te pareció?
         <select name="rating"><option value="like">Me gustó</option><option value="ok">Normal</option><option value="dislike">No volvería</option></select>
       </label>
+      <label>Enlace a la carta (opcional)<input name="menuUrl" type="url" placeholder="https://…"></label>
+      <p class="form-hint">Pega aquí el enlace que se abre al escanear el código QR de la carta.</p>
       <label>Comentario personal<textarea name="notes" rows="3" maxlength="500" placeholder="Qué te gustó, qué pediste, algún detalle para recordarlo…"></textarea></label>
       <div class="dialog-actions"><button type="button" class="outline-btn" id="cancel-dialog">Cancelar</button><button type="submit" class="primary-btn">Guardar en mis sitios</button></div>
       <p class="form-footnote">Demostración: el lugar se añadirá temporalmente y desaparecerá al recargar la página.</p>
     </form>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
