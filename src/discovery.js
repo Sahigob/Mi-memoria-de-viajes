@@ -1,39 +1,59 @@
 import { distanceKm } from "./location.js";
 
+// Instancias públicas gratuitas de Overpass con cobertura europea/global.
+// Se usan en orden para no lanzar varias consultas simultáneas.
 const ENDPOINTS = [
+  "https://ovp.dresel.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter"
+  "https://overpass-api.de/api/interpreter"
 ];
 
 const FILTERS = {
-  comer: ['node["amenity"~"^(restaurant|bar|pub|fast_food|food_court)$"]', 'way["amenity"~"^(restaurant|bar|pub|fast_food|food_court)$"]', 'relation["amenity"~"^(restaurant|bar|pub|fast_food|food_court)$"]'],
-  cafe: ['node["amenity"~"^(cafe|ice_cream)$"]', 'way["amenity"~"^(cafe|ice_cream)$"]', 'node["shop"~"^(bakery|pastry|confectionery)$"]', 'way["shop"~"^(bakery|pastry|confectionery)$"]'],
-  dormir: ['node["tourism"~"^(hotel|hostel|guest_house|motel|apartment)$"]', 'way["tourism"~"^(hotel|hostel|guest_house|motel|apartment)$"]', 'relation["tourism"~"^(hotel|hostel|guest_house|motel|apartment)$"]'],
-  comprar: ['node["shop"]["name"]', 'way["shop"]["name"]', 'relation["shop"]["name"]'],
-  gasolinera: ['node["amenity"="fuel"]', 'way["amenity"="fuel"]'],
-  otros: ['node["tourism"~"^(museum|attraction|zoo|theme_park|gallery)$"]', 'way["tourism"~"^(museum|attraction|zoo|theme_park|gallery)$"]', 'relation["tourism"~"^(museum|attraction|zoo|theme_park|gallery)$"]']
+  comer: [
+    'nwr["amenity"~"^(restaurant|bar|pub|fast_food|food_court)$"]["name"]'
+  ],
+  cafe: [
+    'nwr["amenity"~"^(cafe|ice_cream)$"]["name"]',
+    'nwr["shop"~"^(bakery|pastry|confectionery)$"]["name"]'
+  ],
+  dormir: [
+    'nwr["tourism"~"^(hotel|hostel|guest_house|motel|apartment)$"]["name"]'
+  ],
+  comprar: [
+    'nwr["shop"]["name"]'
+  ],
+  gasolinera: [
+    'nwr["amenity"="fuel"]["name"]'
+  ],
+  otros: [
+    'nwr["tourism"~"^(museum|attraction|zoo|theme_park|gallery)$"]["name"]'
+  ]
 };
 
 export function discoveryStatus() {
   return {
     ready: true,
-    message: "Busca establecimientos reales próximos a tu ubicación mediante OpenStreetMap. La cobertura depende de los datos disponibles en cada zona."
+    message: "Busca establecimientos próximos mediante OpenStreetMap. La disponibilidad depende de los datos cartográficos de cada zona."
   };
 }
 
 function categoryOf(tags = {}) {
   if (tags.amenity === "fuel") return "gasolinera";
-  if (tags.amenity === "cafe" || tags.amenity === "ice_cream" || ["bakery", "pastry", "confectionery"].includes(tags.shop)) return "cafe";
+  if (tags.amenity === "cafe" || tags.amenity === "ice_cream" ||
+      ["bakery", "pastry", "confectionery"].includes(tags.shop)) return "cafe";
   if (tags.shop) return "comprar";
   if (["restaurant", "bar", "pub", "fast_food", "food_court"].includes(tags.amenity)) return "comer";
   if (["hotel", "hostel", "guest_house", "motel", "apartment"].includes(tags.tourism)) return "dormir";
   return "otros";
 }
 
-function addressOf(tags) {
+function addressOf(tags = {}) {
   const street = [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(" ");
-  return [street, tags["addr:postcode"], tags["addr:city"] || tags["addr:town"] || tags["addr:village"]].filter(Boolean).join(", ");
+  return [
+    street,
+    tags["addr:postcode"],
+    tags["addr:city"] || tags["addr:town"] || tags["addr:village"]
+  ].filter(Boolean).join(", ");
 }
 
 function coordinatesOf(element) {
@@ -48,18 +68,29 @@ function coordinatesOf(element) {
 
 async function requestEndpoint(endpoint, query) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 18000);
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
   try {
     const response = await fetch(endpoint, {
       method: "POST",
       body: new URLSearchParams({ data: query }),
-      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-      signal: controller.signal
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "Accept": "application/json"
+      },
+      signal: controller.signal,
+      cache: "no-store"
     });
+
     if (!response.ok) {
-      throw new Error(`El servidor de mapas respondió con el error ${response.status}.`);
+      throw new Error("Servidor " + response.status);
     }
-    return await response.json();
+
+    const data = await response.json();
+    if (!data || !Array.isArray(data.elements)) {
+      throw new Error("Respuesta de mapa no válida");
+    }
+    return data;
   } finally {
     clearTimeout(timeout);
   }
@@ -67,7 +98,7 @@ async function requestEndpoint(endpoint, query) {
 
 export async function searchNearbyEstablishments(location, radiusKm = 5, category = "all") {
   if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
-    throw new Error("Primero necesitamos una ubicación válida.");
+    throw new Error("Primero necesitamos una ubicación válida. Activa el GPS e inténtalo de nuevo.");
   }
 
   const safeRadiusKm = Math.max(1, Math.min(30, Number(radiusKm) || 5));
@@ -75,47 +106,61 @@ export async function searchNearbyEstablishments(location, radiusKm = 5, categor
   const selected = category === "all" ? Object.keys(FILTERS) : [category];
   const selectors = selected.flatMap(key => FILTERS[key] || []);
 
-  if (!selectors.length) throw new Error("La categoría seleccionada no es válida.");
+  if (!selectors.length) {
+    throw new Error("La categoría seleccionada no es válida.");
+  }
 
-  // Se limita la respuesta para evitar consultas enormes en zonas muy pobladas.
-  const query = `[out:json][timeout:18];( ${selectors.map(selector =>
-    `${selector}(around:${radius},${location.lat},${location.lng});`
-  ).join("")} );out center tags 120;`;
+  // Una consulta compacta: solo elementos con nombre y un máximo de 100 resultados.
+  const query = [
+    "[out:json][timeout:9];",
+    "(",
+    selectors.map(selector =>
+      selector + "(around:" + radius + "," + location.lat + "," + location.lng + ");"
+    ).join("\n"),
+    ");",
+    "out center tags 100;"
+  ].join("\n");
 
   let data = null;
-  let lastError = null;
+  const errors = [];
 
   for (const endpoint of ENDPOINTS) {
     try {
       data = await requestEndpoint(endpoint, query);
       break;
     } catch (error) {
-      lastError = error;
+      errors.push(error?.name === "AbortError" ? "tiempo agotado" : (error?.message || "error de conexión"));
     }
   }
 
   if (!data) {
-    if (lastError?.name === "AbortError") {
-      throw new Error("Los servidores de mapas están saturados o tardan demasiado. Prueba con un radio menor o inténtalo de nuevo dentro de un minuto.");
-    }
-    throw new Error(lastError?.message || "No se ha podido conectar con OpenStreetMap. Comprueba tu conexión e inténtalo de nuevo.");
+    throw new Error(
+      "No han respondido los servidores gratuitos de OpenStreetMap (" +
+      errors.join("; ") +
+      "). Comprueba tu conexión y vuelve a intentarlo en unos instantes."
+    );
   }
 
   const unique = new Map();
-  for (const element of data.elements || []) {
+
+  for (const element of data.elements) {
     const tags = element.tags || {};
     const name = tags.name || tags["name:es"] || tags.brand;
     const coordinates = coordinatesOf(element);
+
     if (!name || !coordinates) continue;
 
-    const key = `${element.type}-${element.id}`;
     const distance = distanceKm(location, coordinates);
     if (distance > safeRadiusKm) continue;
 
+    const placeCategory = categoryOf(tags);
+    if (category !== "all" && placeCategory !== category) continue;
+
+    const key = element.type + "-" + element.id;
     unique.set(key, {
       id: key,
       name,
-      category: categoryOf(tags),
+      category: placeCategory,
       lat: coordinates.lat,
       lng: coordinates.lng,
       distance,
@@ -127,7 +172,5 @@ export async function searchNearbyEstablishments(location, radiusKm = 5, categor
     });
   }
 
-  return [...unique.values()]
-    .filter(place => category === "all" || place.category === category)
-    .sort((a, b) => a.distance - b.distance);
+  return [...unique.values()].sort((a, b) => a.distance - b.distance);
 }
