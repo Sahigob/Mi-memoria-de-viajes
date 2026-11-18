@@ -1,6 +1,6 @@
 import { demoPlaces, categories } from "./demo-data.js";
 import { DEMO_LOCATION, getCurrentPosition } from "./location.js";
-import { getNearbyPlaces, getCategoryLabel, getRatingLabel, mapUrl } from "./places.js";
+import { getNearbyPlaces, getCategoryLabel, getRatingLabel, mapUrl, routeUrl } from "./places.js";
 import { groupPlacesByCity } from "./cities.js";
 import { discoveryStatus, searchNearbyEstablishments } from "./discovery.js";
 
@@ -9,6 +9,8 @@ let currentLocation = { ...DEMO_LOCATION };
 let usingRealLocation = false;
 let activeCategory = "all";
 let discoveryResults = [];
+let discoveryMap = null;
+let discoveryMarkers = [];
 let toastTimer;
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -29,6 +31,7 @@ function navigate(view) {
   $$("[data-view]").forEach(button => button.classList.toggle("active", button.dataset.view === view));
   if (view === "places") renderAllPlaces();
   if (view === "cities") renderCities();
+  if (view === "discover" && discoveryMap) setTimeout(() => discoveryMap.invalidateSize(), 120);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function renderPlace(place, showDistance = false) {
@@ -36,7 +39,9 @@ function renderPlace(place, showDistance = false) {
   const distance = showDistance && Number.isFinite(place.distance) ? `<span class="place-distance">${place.distance.toFixed(1).replace(".",",")} km</span>` : "";
   const note = place.notes ? `<div class="place-note">${escapeHtml(place.notes)}</div>` : "";
   const address = place.address ? escapeHtml(place.address) : escapeHtml(place.city || "");
-  return `<article class="place-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${address}</span><span>·</span><span>${getRatingLabel(place.rating)}</span></div>${note}</div>${distance}<div class="place-actions"><button class="icon-btn" title="Abrir en Google Maps" data-map="${escapeHtml(place.id)}">↗</button></div></article>`;
+  const menu = place.menuUrl ? `<a class="menu-link" href="${escapeHtml(place.menuUrl)}" target="_blank" rel="noopener noreferrer">☷ Ver carta</a>` : "";
+  const route = `<button class="route-btn" type="button" data-route="${escapeHtml(place.id)}">↗ Ir hasta allí</button>`;
+  return `<article class="place-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${address}</span><span>·</span><span>${getRatingLabel(place.rating)}</span></div>${note}${menu}</div>${distance}<div class="place-actions">${route}</div></article>`;
 }
 function renderNearby(category = activeCategory) {
   activeCategory = category;
@@ -77,6 +82,37 @@ async function locate() {
     return false;
   }
 }
+function renderDiscoveryMap() {
+  const element = $("#discovery-map");
+  if (!element || !window.L) return;
+  if (!discoveryMap) {
+    discoveryMap = L.map(element, { scrollWheelZoom: false }).setView([currentLocation.lat, currentLocation.lng], 14);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(discoveryMap);
+  }
+  discoveryMarkers.forEach(marker => marker.remove());
+  discoveryMarkers = [];
+  const bounds = [];
+  if (usingRealLocation) {
+    const userMarker = L.circleMarker([currentLocation.lat, currentLocation.lng], {
+      radius: 8, color: "#ffffff", weight: 3, fillColor: "#287b58", fillOpacity: 1
+    }).addTo(discoveryMap).bindPopup("Tu ubicación");
+    discoveryMarkers.push(userMarker);
+    bounds.push([currentLocation.lat, currentLocation.lng]);
+  }
+  discoveryResults.forEach((place, index) => {
+    if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return;
+    const marker = L.marker([place.lat, place.lng]).addTo(discoveryMap)
+      .bindPopup('<strong>' + escapeHtml(place.name) + '</strong><br><button class="map-route-link" data-discovery-route="' + index + '">Ir hasta allí</button>');
+    discoveryMarkers.push(marker);
+    bounds.push([place.lat, place.lng]);
+  });
+  if (bounds.length > 1) discoveryMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
+  else if (bounds.length === 1) discoveryMap.setView(bounds[0], 15);
+  setTimeout(() => discoveryMap.invalidateSize(), 120);
+}
 function renderDiscovery() {
   const container = $("#discovery-results");
   if (!discoveryResults.length) {
@@ -87,8 +123,9 @@ function renderDiscovery() {
     const category = categories[place.category] || categories.otros;
     const address = place.address || place.city || "Dirección no disponible en OpenStreetMap";
     const extra = [place.openingHours ? `Horario: ${escapeHtml(place.openingHours)}` : "", place.website ? `<a href="${escapeHtml(place.website)}" target="_blank" rel="noopener noreferrer">Web</a>` : ""].filter(Boolean).join(" · ");
-    return `<article class="discovery-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${escapeHtml(address)}</span><span>·</span><b>${place.distance.toFixed(1).replace(".",",")} km</b></div>${extra ? `<div class="place-note">${extra}</div>` : ""}<div class="discovery-actions"><button class="outline-btn" data-discovery-map="${index}">Ver en mapa</button><button class="primary-btn" data-save-discovery="${index}">＋ Guardar en Mis sitios</button></div></div></article>`;
+    return `<article class="discovery-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${escapeHtml(address)}</span><span>·</span><b>${place.distance.toFixed(1).replace(".",",")} km</b></div>${extra ? `<div class="place-note">${extra}</div>` : ""}<div class="discovery-actions"><button class="outline-btn" data-discovery-map="${index}">Ver en mapa</button><button class="route-btn" data-discovery-route="${index}">↗ Ir hasta allí</button><button class="primary-btn" data-save-discovery="${index}">＋ Guardar en Mis sitios</button></div></div></article>`;
   }).join("");
+  renderDiscoveryMap();
 }
 async function searchDiscovery() {
   const button = $("#search-discovery-btn");
@@ -162,11 +199,15 @@ function bindEvents() {
     const lat = data.get("lat") === "" ? null : Number(data.get("lat"));
     const lng = data.get("lng") === "" ? null : Number(data.get("lng"));
     if ((lat === null) !== (lng === null)) { toast("Introduce las dos coordenadas o deja ambas vacías."); return; }
-    places.unshift({ id: `temp-${Date.now()}`, name: String(data.get("name")).trim(), category: data.get("category"), city: String(data.get("city")).trim(), address: String(data.get("address")).trim(), lat, lng, rating: data.get("rating"), notes: String(data.get("notes")).trim(), date: new Date().toISOString().slice(0,10) });
+    places.unshift({ id: `temp-${Date.now()}`, name: String(data.get("name")).trim(), category: data.get("category"), city: String(data.get("city")).trim(), address: String(data.get("address")).trim(), lat, lng, rating: data.get("rating"), notes: String(data.get("notes")).trim(), menuUrl: String(data.get("menuUrl") || "").trim(), date: new Date().toISOString().slice(0,10) });
     form.reset(); $("#place-dialog").close(); renderNearby("all"); renderAllPlaces(); renderCities();
     toast("Lugar añadido temporalmente a Mis sitios.");
   });
   document.addEventListener("click", event => {
+    const routeButton = event.target.closest("[data-route]");
+    if (routeButton) { const place = places.find(item => item.id === routeButton.dataset.route); if (place) window.open(routeUrl(place), "_blank", "noopener"); }
+    const discoveryRoute = event.target.closest("[data-discovery-route]");
+    if (discoveryRoute) { const place = discoveryResults[Number(discoveryRoute.dataset.discoveryRoute)]; if (place) window.open(routeUrl(place), "_blank", "noopener"); }
     const mapButton = event.target.closest("[data-map]");
     if (mapButton) {
       const place = places.find(item => item.id === mapButton.dataset.map);
@@ -191,7 +232,7 @@ function init() {
   $("#view-discover .discover-panel button").textContent = "⌖ Detectar ubicación y buscar";
   const controls = document.createElement("div");
   controls.className = "discovery-toolbar";
-  controls.innerHTML = `<label>Tipo de lugar<select id="discovery-category"><option value="all">Todas las categorías</option><option value="comer">Restaurantes y bares</option><option value="cafe">Cafeterías y panaderías</option><option value="dormir">Alojamientos</option><option value="comprar">Tiendas</option><option value="gasolinera">Gasolineras</option><option value="otros">Otros lugares</option></select></label><label>Distancia<select id="discovery-radius"><option value="1">1 km</option><option value="3">3 km</option><option value="5" selected>5 km</option><option value="10">10 km</option><option value="20">20 km</option><option value="30">30 km</option></select></label><button class="primary-btn" id="search-discovery-btn">Buscar establecimientos</button></div><p class="discovery-status" id="discovery-status" aria-live="polite">Pulsa el botón para consultar los establecimientos cercanos.</p><div class="discovery-results place-list" id="discovery-results"></div><p class="osm-attribution">Datos cartográficos y de establecimientos: © OpenStreetMap contributors.</p>`;
+  controls.innerHTML = `<label>Tipo de lugar<select id="discovery-category"><option value="all">Todas las categorías</option><option value="comer">Restaurantes y bares</option><option value="cafe">Cafeterías y panaderías</option><option value="dormir">Alojamientos</option><option value="comprar">Tiendas</option><option value="gasolinera">Gasolineras</option><option value="otros">Otros lugares</option></select></label><label>Distancia<select id="discovery-radius"><option value="1">1 km</option><option value="3">3 km</option><option value="5" selected>5 km</option><option value="10">10 km</option><option value="20">20 km</option><option value="30">30 km</option></select></label><button class="primary-btn" id="search-discovery-btn">Buscar establecimientos</button></div><p class="discovery-status" id="discovery-status" aria-live="polite">Pulsa el botón para consultar los establecimientos cercanos.</p><div class="map-section"><div class="map-section-heading"><strong>Mapa de establecimientos</strong><span>Selecciona un marcador para ver el lugar.</span></div><div id="discovery-map" aria-label="Mapa de establecimientos cercanos"></div></div><div class="discovery-results place-list" id="discovery-results"></div><p class="osm-attribution">Datos cartográficos y de establecimientos: © OpenStreetMap contributors.</p>`;
   $("#view-discover .info-card").before(controls);
   bindEvents(); renderNearby("all"); renderAllPlaces(); renderCities();
 }
