@@ -160,6 +160,7 @@ function prepareSaveDiscovery(index) {
   form.elements.lat.value = place.lat.toFixed(6);
   form.elements.lng.value = place.lng.toFixed(6);
   form.elements.rating.value = "like";
+  form.elements.menuUrl.value = "";
   form.elements.notes.value = "Encontrado mediante OpenStreetMap. Añade aquí tu comentario personal.";
   $("#place-dialog").showModal();
 }
