@@ -18,5 +18,11 @@ export function getRatingLabel(rating) {
 }
 
 export function mapUrl(place) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.lat},${place.lng}`)}`;
+  const query = Number.isFinite(place.lat) && Number.isFinite(place.lng) ? `${place.lat},${place.lng}` : [place.name, place.address, place.city].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+export function routeUrl(place) {
+  const destination = Number.isFinite(place.lat) && Number.isFinite(place.lng) ? `${place.lat},${place.lng}` : [place.name, place.address, place.city].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
