@@ -1,10 +1,11 @@
 import { distanceKm } from "./location.js";
 
-// Instancias públicas gratuitas de Overpass con cobertura europea/global.
-// Se usan en orden para no lanzar varias consultas simultáneas.
+// Servicios públicos gratuitos de Overpass (OpenStreetMap).
+// Se consultan uno detrás de otro para evitar enviar peticiones duplicadas.
 const ENDPOINTS = [
-  "https://ovp.dresel.systems/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
+  "https://ovp.dresel.systems/api/interpreter",
   "https://overpass-api.de/api/interpreter"
 ];
 
@@ -33,7 +34,7 @@ const FILTERS = {
 export function discoveryStatus() {
   return {
     ready: true,
-    message: "Busca establecimientos próximos mediante OpenStreetMap. La disponibilidad depende de los datos cartográficos de cada zona."
+    message: "Busca establecimientos próximos mediante OpenStreetMap. La disponibilidad depende de los servidores públicos y de los datos cartográficos de cada zona."
   };
 }
 
@@ -68,7 +69,7 @@ function coordinatesOf(element) {
 
 async function requestEndpoint(endpoint, query) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
     const response = await fetch(endpoint, {
@@ -83,12 +84,12 @@ async function requestEndpoint(endpoint, query) {
     });
 
     if (!response.ok) {
-      throw new Error("Servidor " + response.status);
+      throw new Error("HTTP " + response.status);
     }
 
     const data = await response.json();
     if (!data || !Array.isArray(data.elements)) {
-      throw new Error("Respuesta de mapa no válida");
+      throw new Error("respuesta de datos no válida");
     }
     return data;
   } finally {
@@ -110,15 +111,14 @@ export async function searchNearbyEstablishments(location, radiusKm = 5, categor
     throw new Error("La categoría seleccionada no es válida.");
   }
 
-  // Una consulta compacta: solo elementos con nombre y un máximo de 100 resultados.
   const query = [
-    "[out:json][timeout:9];",
+    "[out:json][timeout:7];",
     "(",
     selectors.map(selector =>
       selector + "(around:" + radius + "," + location.lat + "," + location.lng + ");"
     ).join("\n"),
     ");",
-    "out center tags 100;"
+    "out center tags 80;"
   ].join("\n");
 
   let data = null;
@@ -129,15 +129,18 @@ export async function searchNearbyEstablishments(location, radiusKm = 5, categor
       data = await requestEndpoint(endpoint, query);
       break;
     } catch (error) {
-      errors.push(error?.name === "AbortError" ? "tiempo agotado" : (error?.message || "error de conexión"));
+      const reason = error?.name === "AbortError"
+        ? "tiempo agotado"
+        : (error?.message || "fallo de conexión");
+      errors.push(new URL(endpoint).hostname + ": " + reason);
     }
   }
 
   if (!data) {
     throw new Error(
-      "No han respondido los servidores gratuitos de OpenStreetMap (" +
-      errors.join("; ") +
-      "). Comprueba tu conexión y vuelve a intentarlo en unos instantes."
+      "Los servidores gratuitos de OpenStreetMap no están respondiendo en este momento. " +
+      "Se han probado varias alternativas (" + errors.join(" · ") +
+      "). Espera un minuto y vuelve a intentarlo. No es un problema de tu cuenta ni de tus lugares guardados."
     );
   }
 
