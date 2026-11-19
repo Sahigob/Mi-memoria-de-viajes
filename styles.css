@@ -16,3 +16,23 @@
 .discovery-actions button{font-size:11px;padding:8px 11px}
 .osm-attribution{font-size:10px;color:var(--muted);text-align:right;margin:13px 2px}
 @media(max-width:700px){.discovery-toolbar{display:grid;grid-template-columns:1fr 1fr;padding:13px;gap:10px}.discovery-toolbar button{grid-column:1/-1;width:100%}.discovery-card{padding:12px;gap:9px}.discovery-actions button{flex:1}.osm-attribution{text-align:left}}
+
+/* Acceso privado mediante Firebase Authentication */
+[hidden]{display:none!important}
+.auth-screen{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top left,#e7f2ea 0,transparent 42%),var(--bg)}
+.auth-card{width:min(100%,420px);background:#fff;border:1px solid var(--line);border-radius:20px;padding:34px;box-shadow:var(--shadow);display:grid;gap:14px}
+.auth-brand{display:flex;justify-content:center;margin-bottom:4px}
+.auth-brand .brand-mark{width:54px;height:54px;font-size:32px;border-radius:17px}
+.auth-card h1{text-align:center;font-size:27px;margin:0}
+.auth-card .eyebrow{text-align:center}
+.auth-intro{text-align:center;margin-bottom:8px}
+.auth-card label{display:grid;gap:7px;font-size:12px;font-weight:700;color:#526259}
+.auth-card input{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px 13px;background:#fbfcfb;color:var(--ink);outline:none}
+.auth-card input:focus{border-color:#8db89b;box-shadow:0 0 0 3px #eaf4ed}
+.auth-error{min-height:18px;margin:0;color:#a13f3f;font-size:12px;line-height:1.4}
+.auth-footnote{text-align:center;color:var(--muted);font-size:11px;margin:0}
+.full-width{width:100%}
+.auth-user-email{max-width:min(36vw,360px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12px}
+.logout-btn{padding:8px 12px;font-size:11px}
+.auth-dot{background:#2f9660}
+@media(max-width:700px){.auth-card{padding:26px 22px}.auth-user-email{max-width:34vw;font-size:10px}.logout-btn{padding:8px;font-size:10px}}
