@@ -90,3 +90,11 @@
   #view-discover .discovery-actions button{flex:1 1 120px}
   #view-discover .osm-attribution{text-align:left}
 }
+
+/* Estado sencillo del lugar */
+.place-status{display:inline-flex;align-items:center;border-radius:20px;padding:3px 7px;font-size:10px;font-weight:700;background:#eef1ef;color:#5f6d64}
+.place-status.planned{background:#fff4df;color:#936b2c}
+.place-status.visited{background:#eaf4ed;color:#267653}
+.place-status.favorite{background:#f9e9ec;color:#a64e61}
+#place-status-filter{min-width:145px}
+@media(max-width:700px){#place-status-filter{width:100%}}
