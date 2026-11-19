@@ -55,8 +55,8 @@ function renderNearby(category = activeCategory) {
   const radius = Number($("#radius-select").value);
   const results = usingRealLocation ? getNearbyPlaces(places, currentLocation, radius, category) : [];
   $("#nearby-title").textContent = category === "all" ? "Lugares guardados cerca" : `${getCategoryLabel(category)} cerca`;
-  $("#nearby-subtitle").textContent = usingRealLocation ? `Resultados a menos de ${radius} km de tu ubicación actual.` : "Ejemplos ficticios en Valencia para explorar el funcionamiento.";
-  $("#nearby-results").innerHTML = results.length ? results.map(place => renderPlace(place, true)).join("") : `<div class="empty-state"><strong>No hay recuerdos en este radio</strong>Prueba a ampliar la distancia o guarda un lugar en esta zona.</div>`;
+  $("#nearby-subtitle").textContent = usingRealLocation ? `Resultados a menos de ${radius} km de tu ubicación actual.` : "Activa tu ubicación cuando quieras consultar tus recuerdos cercanos.";
+  $("#nearby-results").innerHTML = results.length ? results.map(place => renderPlace(place, true)).join("") : `<div class="empty-state"><strong>${usingRealLocation ? "No hay recuerdos en este radio" : "Activa tu ubicación"}</strong>${usingRealLocation ? "Prueba a ampliar la distancia o guarda un lugar en esta zona." : "La aplicación solo utiliza el GPS cuando pulsas «Usar mi ubicación»."}</div>`;
   $$(".category-card").forEach(button => button.classList.toggle("selected", button.dataset.category === category));
 }
 function renderAllPlaces() {
