@@ -285,7 +285,7 @@ function bindEvents() {
       toast("Coordenadas añadidas al formulario.");
     } catch (error) { toast(error.message); }
   });
-  $("#place-form").addEventListener("submit", event => {
+  $("#place-form").addEventListener("submit", async event => {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
