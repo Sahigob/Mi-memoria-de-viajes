@@ -1,12 +1,14 @@
-import { demoPlaces, categories } from "./demo-data.js";
-import { DEMO_LOCATION, getCurrentPosition } from "./location.js";
+import { categories } from "./demo-data.js";
+import { getCurrentPosition } from "./location.js";
+import { auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from "./firebase.js";
 import { getNearbyPlaces, getCategoryLabel, getRatingLabel, mapUrl, routeUrl } from "./places.js";
 import { groupPlacesByCity } from "./cities.js";
 import { discoveryStatus, searchNearbyEstablishments } from "./discovery.js";
 
-let places = demoPlaces.map(place => ({ ...place }));
+let places = [];
+let currentUser = null;
 let editingPlaceId = null;
-let currentLocation = { ...DEMO_LOCATION };
+let currentLocation = null;
 let usingRealLocation = false;
 let activeCategory = "all";
 let discoveryResults = [];
@@ -51,7 +53,7 @@ function renderPlace(place, showDistance = false) {
 function renderNearby(category = activeCategory) {
   activeCategory = category;
   const radius = Number($("#radius-select").value);
-  const results = getNearbyPlaces(places, currentLocation, radius, category);
+  const results = usingRealLocation ? getNearbyPlaces(places, currentLocation, radius, category) : [];
   $("#nearby-title").textContent = category === "all" ? "Lugares guardados cerca" : `${getCategoryLabel(category)} cerca`;
   $("#nearby-subtitle").textContent = usingRealLocation ? `Resultados a menos de ${radius} km de tu ubicación actual.` : "Ejemplos ficticios en Valencia para explorar el funcionamiento.";
   $("#nearby-results").innerHTML = results.length ? results.map(place => renderPlace(place, true)).join("") : `<div class="empty-state"><strong>No hay recuerdos en este radio</strong>Prueba a ampliar la distancia o guarda un lugar en esta zona.</div>`;
@@ -72,6 +74,37 @@ function renderAllPlaces() {
 function renderCities() {
   const groups = groupPlacesByCity(places);
   $("#city-list").innerHTML = groups.length ? groups.map(([city,count]) => `<button class="city-card" data-city="${escapeHtml(city)}"><strong>${escapeHtml(city)}</strong><small>Tu memoria en esta localidad</small><span>${count} ${count === 1 ? "lugar guardado" : "lugares guardados"} →</span></button>`).join("") : `<div class="empty-state">Todavía no tienes ciudades guardadas.</div>`;
+}
+function userPlacesCollection() {
+  if (!currentUser) throw new Error("Debes iniciar sesión para acceder a tus establecimientos.");
+  return collection(db, "users", currentUser.uid, "places");
+}
+async function loadUserPlaces() {
+  if (!currentUser) return;
+  const snapshot = await getDocs(userPlacesCollection());
+  places = snapshot.docs.map(item => {
+    const data = item.data();
+    return { ...data, id: item.id, lat: data.lat == null ? null : Number(data.lat), lng: data.lng == null ? null : Number(data.lng) };
+  });
+  renderNearby("all");
+  renderAllPlaces();
+  renderCities();
+}
+function authErrorMessage(error) {
+  const code = error?.code || "";
+  if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) return "El correo o la contraseña no son correctos.";
+  if (code.includes("invalid-email")) return "El formato del correo electrónico no es válido.";
+  if (code.includes("too-many-requests")) return "Demasiados intentos. Espera un poco y vuelve a intentarlo.";
+  if (code.includes("network-request-failed")) return "No hay conexión. Comprueba tu conexión a Internet.";
+  if (code.includes("permission-denied")) return "Firebase ha denegado el acceso. Revisa las reglas de Firestore.";
+  return "No se ha podido completar la operación. Comprueba la configuración de Firebase.";
+}
+function showAuthenticatedApp(user) {
+  currentUser = user;
+  $("#auth-screen").hidden = true;
+  $("#app-shell").hidden = false;
+  $("#auth-user-email").textContent = user.email || "Cuenta privada";
+  $("#auth-error").textContent = "";
 }
 async function locate() {
   $("#location-status").textContent = "Solicitando permiso de ubicación al navegador…";
@@ -208,6 +241,27 @@ function prepareSaveDiscovery(index) {
   $("#place-dialog").showModal();
 }
 function bindEvents() {
+  $("#login-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = $("#login-submit");
+    const email = $("#login-email").value.trim();
+    const password = $("#login-password").value;
+    $("#auth-error").textContent = "";
+    button.disabled = true;
+    button.textContent = "Entrando…";
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      $("#auth-error").textContent = authErrorMessage(error);
+    } finally {
+      button.disabled = false;
+      button.textContent = "Entrar";
+    }
+  });
+  $("#logout-btn").addEventListener("click", async () => {
+    try { await signOut(auth); }
+    catch (error) { toast(authErrorMessage(error)); }
+  });
   $$("[data-view]").forEach(button => button.addEventListener("click", () => navigate(button.dataset.view)));
   $$(".category-card").forEach(button => button.addEventListener("click", () => renderNearby(button.dataset.category)));
   $("#locate-btn").addEventListener("click", locate);
@@ -216,12 +270,6 @@ function bindEvents() {
   });
   $("#search-discovery-btn").addEventListener("click", searchDiscovery);
   $("#radius-select").addEventListener("change", () => renderNearby());
-  $("#reset-demo-location").addEventListener("click", () => {
-    currentLocation = { ...DEMO_LOCATION }; usingRealLocation = false;
-    $("#location-name").textContent = DEMO_LOCATION.label;
-    $("#location-status").textContent = "Ejemplo para probar la aplicación. Activa tu GPS cuando quieras.";
-    renderNearby("all");
-  });
   $("#show-all-nearby").addEventListener("click", () => renderNearby("all"));
   $("#add-place-top").addEventListener("click", openNewPlaceForm);
   $("#place-search").addEventListener("input", renderAllPlaces);
@@ -245,17 +293,28 @@ function bindEvents() {
     const lng = data.get("lng") === "" ? null : Number(data.get("lng"));
     if ((lat === null) !== (lng === null)) { toast("Introduce las dos coordenadas o deja ambas vacías."); return; }
     const updatedData = { name: String(data.get("name")).trim(), category: data.get("category"), city: String(data.get("city")).trim(), address: String(data.get("address")).trim(), lat, lng, rating: data.get("rating"), status: data.get("status") || "visited", notes: String(data.get("notes")).trim(), menuUrl: String(data.get("menuUrl") || "").trim() };
-    if (editingPlaceId !== null) {
-      const existing = places.find(item => String(item.id) === String(editingPlaceId));
-      if (!existing) { toast("No se ha encontrado el establecimiento."); return; }
-      Object.assign(existing, updatedData);
-      toast("Cambios guardados temporalmente.");
-    } else {
-      places.unshift({ id: `temp-${Date.now()}`, ...updatedData, date: new Date().toISOString().slice(0,10) });
-      toast("Lugar añadido temporalmente a Mis sitios.");
+    const submitButton = $("#place-form-submit");
+    submitButton.disabled = true;
+    try {
+      if (editingPlaceId !== null) {
+        const existing = places.find(item => String(item.id) === String(editingPlaceId));
+        if (!existing) { toast("No se ha encontrado el establecimiento."); return; }
+        await updateDoc(doc(db, "users", currentUser.uid, "places", String(editingPlaceId)), { ...updatedData, updatedAt: serverTimestamp() });
+        Object.assign(existing, updatedData);
+        toast("Cambios guardados en tu cuenta.");
+      } else {
+        const created = { ...updatedData, date: new Date().toISOString().slice(0,10), createdAt: serverTimestamp() };
+        const reference = await addDoc(userPlacesCollection(), created);
+        places.unshift({ ...updatedData, id: reference.id, date: created.date });
+        toast("Lugar guardado en tu cuenta.");
+      }
+      editingPlaceId = null;
+      form.reset(); $("#place-dialog").close(); renderNearby("all"); renderAllPlaces(); renderCities();
+    } catch (error) {
+      toast(authErrorMessage(error));
+    } finally {
+      submitButton.disabled = false;
     }
-    editingPlaceId = null;
-    form.reset(); $("#place-dialog").close(); renderNearby("all"); renderAllPlaces(); renderCities();
   });
   document.addEventListener("click", event => {
     const editButton = event.target.closest("[data-edit-place]");
@@ -264,9 +323,12 @@ function bindEvents() {
     if (deleteButton) {
       const place = places.find(item => String(item.id) === String(deleteButton.dataset.deletePlace));
       if (place && window.confirm('¿Seguro que quieres eliminar "' + place.name + '" de Mis sitios? Esta acción no se puede deshacer.')) {
-        places = places.filter(item => String(item.id) !== String(place.id));
-        renderNearby("all"); renderAllPlaces(); renderCities();
-        toast("Establecimiento eliminado temporalmente.");
+        deleteButton.disabled = true;
+        deleteDoc(doc(db, "users", currentUser.uid, "places", String(place.id))).then(() => {
+          places = places.filter(item => String(item.id) !== String(place.id));
+          renderNearby("all"); renderAllPlaces(); renderCities();
+          toast("Establecimiento eliminado de tu cuenta.");
+        }).catch(error => toast(authErrorMessage(error))).finally(() => { deleteButton.disabled = false; });
       }
       return;
     }
@@ -353,5 +415,22 @@ function init() {
   renderNearby("all");
   renderAllPlaces();
   renderCities();
+  onAuthStateChanged(auth, async user => {
+    if (!user) {
+      currentUser = null;
+      places = [];
+      $("#app-shell").hidden = true;
+      $("#auth-screen").hidden = false;
+      $("#login-password").value = "";
+      renderNearby("all"); renderAllPlaces(); renderCities();
+      return;
+    }
+    showAuthenticatedApp(user);
+    try {
+      await loadUserPlaces();
+    } catch (error) {
+      toast(authErrorMessage(error));
+    }
+  });
 }
 init();
