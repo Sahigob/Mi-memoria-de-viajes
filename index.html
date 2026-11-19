@@ -14,7 +14,20 @@
   <link rel="stylesheet" href="./map-features.css">
 </head>
 <body>
-  <div class="app-shell">
+  <section id="auth-screen" class="auth-screen">
+    <form id="login-form" class="auth-card">
+      <div class="auth-brand"><span class="brand-mark">⌖</span></div>
+      <p class="eyebrow">TU ESPACIO PRIVADO</p>
+      <h1>Memoria de Viajes</h1>
+      <p class="muted auth-intro">Accede con el correo y la contraseña que te ha facilitado el administrador.</p>
+      <label>Correo electrónico<input id="login-email" name="email" type="email" autocomplete="username" required placeholder="tu@correo.com"></label>
+      <label>Contraseña<input id="login-password" name="password" type="password" autocomplete="current-password" required placeholder="Tu contraseña"></label>
+      <p id="auth-error" class="auth-error" role="alert" aria-live="polite"></p>
+      <button id="login-submit" type="submit" class="primary-btn full-width">Entrar</button>
+      <p class="auth-footnote">Las cuentas las crea el administrador. No hay registro público.</p>
+    </form>
+  </section>
+  <div class="app-shell" id="app-shell" hidden>
     <aside class="sidebar">
       <a class="brand" href="#" aria-label="Memoria de Viajes, inicio">
         <span class="brand-mark">⌖</span>
@@ -28,7 +41,7 @@
         <button class="nav-item" data-view="cities"><span>▦</span> Mis ciudades</button>
       </nav>
       <div class="sidebar-bottom">
-        <div class="demo-note"><span class="status-dot"></span><div><strong>Modo demostración</strong><small>Los datos no se guardan todavía</small></div></div>
+        <div class="demo-note"><span class="status-dot auth-dot"></span><div><strong>Cuenta privada</strong><small>Datos guardados en Firebase</small></div></div>
         <button class="nav-item" data-view="settings"><span>⚙</span> Configuración</button>
       </div>
     </aside>
@@ -37,8 +50,7 @@
       <header class="topbar">
         <button class="mobile-brand" data-view="nearby"><span class="brand-mark">⌖</span><strong>Memoria de Viajes</strong></button>
         <div class="topbar-spacer"></div>
-        <div class="demo-pill"><span class="status-dot"></span> DEMO</div>
-        <div class="avatar" title="Perfil de demostración">F</div>
+        <span id="auth-user-email" class="auth-user-email"></span><button id="logout-btn" class="outline-btn logout-btn" type="button">Cerrar sesión</button>
       </header>
 
       <section class="view active" id="view-nearby">
@@ -52,8 +64,8 @@
         </div>
         <div class="location-banner">
           <div class="location-icon">⌖</div>
-          <div class="location-copy"><span class="small-label">UBICACIÓN DE PRUEBA</span><strong id="location-name">Valencia, España</strong><small id="location-status">Ejemplo para probar la aplicación. Activa tu GPS cuando quieras.</small></div>
-          <button class="text-btn" id="reset-demo-location">Volver al ejemplo</button>
+          <div class="location-copy"><span class="small-label">TU UBICACIÓN ACTUAL</span><strong id="location-name">Ubicación no activada</strong><small id="location-status">Activa el GPS cuando quieras consultar tus recuerdos cercanos.</small></div>
+          
         </div>
         <div class="section-heading">
           <div><h2>Buscar en mis recuerdos</h2><p class="muted">Elige qué tipo de lugar quieres encontrar.</p></div>
@@ -95,7 +107,7 @@
 
       <section class="view" id="view-settings">
         <div class="page-heading"><div><p class="eyebrow">PREFERENCIAS</p><h1>Configuración</h1><p class="muted">Así funcionará tu espacio personal.</p></div></div>
-        <div class="settings-card"><div class="settings-row"><div><strong>Cuenta familiar</strong><p>Cada familiar tendrá su propia cuenta y sus propios lugares privados.</p></div><span class="setting-tag">Individual</span></div><div class="settings-row"><div><strong>Ubicación</strong><p>Solo se solicitará cuando pulses «Usar mi ubicación».</p></div><span class="setting-tag">Bajo demanda</span></div><div class="settings-row"><div><strong>Almacenamiento</strong><p>En esta demo los cambios solo viven mientras la página está abierta. Firebase se conectará más adelante.</p></div><span class="setting-tag warning">Temporal</span></div><div class="settings-row"><div><strong>Fotografías</strong><p>No se utilizarán fotografías ni almacenamiento de imágenes.</p></div><span class="setting-tag">Desactivadas</span></div></div>
+        <div class="settings-card"><div class="settings-row"><div><strong>Cuenta familiar</strong><p>Cada familiar tendrá su propia cuenta y sus propios lugares privados.</p></div><span class="setting-tag">Individual</span></div><div class="settings-row"><div><strong>Ubicación</strong><p>Solo se solicitará cuando pulses «Usar mi ubicación».</p></div><span class="setting-tag">Bajo demanda</span></div><div class="settings-row"><div><strong>Almacenamiento</strong><p>Tus establecimientos se guardan de forma privada en tu cuenta de Firebase.</p></div><span class="setting-tag">Firebase</span></div><div class="settings-row"><div><strong>Fotografías</strong><p>No se utilizarán fotografías ni almacenamiento de imágenes.</p></div><span class="setting-tag">Desactivadas</span></div></div>
       </section>
     </main>
   </div>
@@ -128,7 +140,7 @@
       <p class="form-hint">Pega aquí el enlace que se abre al escanear el código QR de la carta.</p>
       <label>Comentario personal<textarea name="notes" rows="3" maxlength="500" placeholder="Qué te gustó, qué pediste, algún detalle para recordarlo…"></textarea></label>
       <div class="dialog-actions"><button type="button" class="outline-btn" id="cancel-dialog">Cancelar</button><button type="submit" class="primary-btn" id="place-form-submit">Guardar en mis sitios</button></div>
-      <p class="form-footnote">Demostración: el lugar se añadirá temporalmente y desaparecerá al recargar la página.</p>
+      <p class="form-footnote">Los cambios se guardarán en tu cuenta privada.</p>
     </form>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
