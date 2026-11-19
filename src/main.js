@@ -5,6 +5,7 @@ import { groupPlacesByCity } from "./cities.js";
 import { discoveryStatus, searchNearbyEstablishments } from "./discovery.js";
 
 let places = demoPlaces.map(place => ({ ...place }));
+let editingPlaceId = null;
 let currentLocation = { ...DEMO_LOCATION };
 let usingRealLocation = false;
 let activeCategory = "all";
@@ -43,7 +44,9 @@ function renderPlace(place, showDistance = false) {
   const statusLabels = { planned: "Por visitar", visited: "Visitado", favorite: "Favorito" };
   const status = statusLabels[place.status || "visited"] || "Visitado";
   const route = `<button class="route-btn" type="button" data-route="${escapeHtml(place.id)}">↗ Ir hasta allí</button>`;
-  return `<article class="place-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${address}</span><span>·</span><span>${getRatingLabel(place.rating)}</span><span class="place-status ${place.status || "visited"}">${status}</span></div>${note}${menu}</div>${distance}<div class="place-actions">${route}</div></article>`;
+  const edit = `<button class="place-edit-btn" type="button" data-edit-place="${escapeHtml(place.id)}" aria-label="Editar ${escapeHtml(place.name)}">✎ Editar</button>`;
+  const remove = `<button class="place-delete-btn" type="button" data-delete-place="${escapeHtml(place.id)}" aria-label="Eliminar ${escapeHtml(place.name)}">Eliminar</button>`;
+  return `<article class="place-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${address}</span><span>·</span><span>${getRatingLabel(place.rating)}</span><span class="place-status ${place.status || "visited"}">${status}</span></div>${note}${menu}</div>${distance}<div class="place-actions">${route}${edit}${remove}</div></article>`;
 }
 function renderNearby(category = activeCategory) {
   activeCategory = category;
@@ -154,10 +157,44 @@ async function searchDiscovery() {
     button.textContent = "Buscar establecimientos";
   }
 }
+function openNewPlaceForm() {
+  const form = $("#place-form");
+  editingPlaceId = null;
+  form.reset();
+  $("#place-dialog .eyebrow").textContent = "AÑADIR A TUS RECUERDOS";
+  $("#place-dialog h2").textContent = "Guardar un lugar";
+  $("#place-form-submit").textContent = "Guardar en mis sitios";
+  form.elements.status.value = "planned";
+  $("#place-dialog").showModal();
+}
+function openEditPlace(id) {
+  const place = places.find(item => String(item.id) === String(id));
+  if (!place) return;
+  const form = $("#place-form");
+  editingPlaceId = place.id;
+  form.elements.name.value = place.name || "";
+  form.elements.category.value = place.category || "otros";
+  form.elements.city.value = place.city || "";
+  form.elements.address.value = place.address || "";
+  form.elements.lat.value = Number.isFinite(place.lat) ? place.lat : "";
+  form.elements.lng.value = Number.isFinite(place.lng) ? place.lng : "";
+  form.elements.rating.value = place.rating || "like";
+  form.elements.status.value = place.status || "visited";
+  form.elements.menuUrl.value = place.menuUrl || "";
+  form.elements.notes.value = place.notes || "";
+  $("#place-dialog .eyebrow").textContent = "ACTUALIZAR TUS RECUERDOS";
+  $("#place-dialog h2").textContent = "Editar establecimiento";
+  $("#place-form-submit").textContent = "Guardar cambios";
+  $("#place-dialog").showModal();
+}
 function prepareSaveDiscovery(index) {
   const place = discoveryResults[index];
   if (!place) return;
   const form = $("#place-form");
+  editingPlaceId = null;
+  $("#place-dialog .eyebrow").textContent = "AÑADIR A TUS RECUERDOS";
+  $("#place-dialog h2").textContent = "Guardar un lugar";
+  $("#place-form-submit").textContent = "Guardar en mis sitios";
   form.elements.name.value = place.name;
   form.elements.category.value = place.category;
   form.elements.city.value = place.city || "";
@@ -186,7 +223,7 @@ function bindEvents() {
     renderNearby("all");
   });
   $("#show-all-nearby").addEventListener("click", () => renderNearby("all"));
-  $("#add-place-top").addEventListener("click", () => $("#place-dialog").showModal());
+  $("#add-place-top").addEventListener("click", openNewPlaceForm);
   $("#place-search").addEventListener("input", renderAllPlaces);
   $("#place-category-filter").addEventListener("change", renderAllPlaces);
   $("#place-status-filter").addEventListener("change", renderAllPlaces);
@@ -207,11 +244,32 @@ function bindEvents() {
     const lat = data.get("lat") === "" ? null : Number(data.get("lat"));
     const lng = data.get("lng") === "" ? null : Number(data.get("lng"));
     if ((lat === null) !== (lng === null)) { toast("Introduce las dos coordenadas o deja ambas vacías."); return; }
-    places.unshift({ id: `temp-${Date.now()}`, name: String(data.get("name")).trim(), category: data.get("category"), city: String(data.get("city")).trim(), address: String(data.get("address")).trim(), lat, lng, rating: data.get("rating"), status: data.get("status") || "visited", notes: String(data.get("notes")).trim(), menuUrl: String(data.get("menuUrl") || "").trim(), date: new Date().toISOString().slice(0,10) });
+    const updatedData = { name: String(data.get("name")).trim(), category: data.get("category"), city: String(data.get("city")).trim(), address: String(data.get("address")).trim(), lat, lng, rating: data.get("rating"), status: data.get("status") || "visited", notes: String(data.get("notes")).trim(), menuUrl: String(data.get("menuUrl") || "").trim() };
+    if (editingPlaceId !== null) {
+      const existing = places.find(item => String(item.id) === String(editingPlaceId));
+      if (!existing) { toast("No se ha encontrado el establecimiento."); return; }
+      Object.assign(existing, updatedData);
+      toast("Cambios guardados temporalmente.");
+    } else {
+      places.unshift({ id: `temp-${Date.now()}`, ...updatedData, date: new Date().toISOString().slice(0,10) });
+      toast("Lugar añadido temporalmente a Mis sitios.");
+    }
+    editingPlaceId = null;
     form.reset(); $("#place-dialog").close(); renderNearby("all"); renderAllPlaces(); renderCities();
-    toast("Lugar añadido temporalmente a Mis sitios.");
   });
   document.addEventListener("click", event => {
+    const editButton = event.target.closest("[data-edit-place]");
+    if (editButton) { openEditPlace(editButton.dataset.editPlace); return; }
+    const deleteButton = event.target.closest("[data-delete-place]");
+    if (deleteButton) {
+      const place = places.find(item => String(item.id) === String(deleteButton.dataset.deletePlace));
+      if (place && window.confirm('¿Seguro que quieres eliminar "' + place.name + '" de Mis sitios? Esta acción no se puede deshacer.')) {
+        places = places.filter(item => String(item.id) !== String(place.id));
+        renderNearby("all"); renderAllPlaces(); renderCities();
+        toast("Establecimiento eliminado temporalmente.");
+      }
+      return;
+    }
     const routeButton = event.target.closest("[data-route]");
     if (routeButton) { const place = places.find(item => item.id === routeButton.dataset.route); if (place) window.open(routeUrl(place), "_blank", "noopener"); }
     const discoveryRoute = event.target.closest("[data-discovery-route]");
