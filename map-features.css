@@ -98,3 +98,14 @@
 .place-status.favorite{background:#f9e9ec;color:#a64e61}
 #place-status-filter{min-width:145px}
 @media(max-width:700px){#place-status-filter{width:100%}}
+
+/* Acciones de gestión de cada establecimiento */
+.place-card .place-actions{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+.place-edit-btn,.place-delete-btn{border:1px solid #dce3de;background:#fff;color:#52645a;border-radius:9px;padding:8px 10px;font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+.place-edit-btn:hover{background:#edf5ef;border-color:#b9cbbd}
+.place-delete-btn{color:#9a5555;border-color:#eadada}
+.place-delete-btn:hover{background:#fff0f0;border-color:#dfbcbc}
+@media(max-width:700px){
+  .place-card .place-actions{width:100%;display:flex;gap:7px;flex-wrap:wrap}
+  .place-card .place-actions button{flex:1 1 auto;min-height:38px}
+}
