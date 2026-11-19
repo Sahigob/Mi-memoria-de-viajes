@@ -52,10 +52,14 @@ function coordinatesOf(element) {
   return null;
 }
 
-async function requestEndpoint(endpoint, query, signal) {
-  const timeout = setTimeout(() => {
-    // El controlador común cancela las peticiones lentas al vencer el plazo.
-  }, 0);
+async function requestEndpoint(endpoint, query, parentSignal) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  const abortFromParent = () => controller.abort();
+
+  if (parentSignal.aborted) controller.abort();
+  else parentSignal.addEventListener("abort", abortFromParent, { once: true });
+
   try {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -64,7 +68,7 @@ async function requestEndpoint(endpoint, query, signal) {
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
         "Accept": "application/json"
       },
-      signal,
+      signal: controller.signal,
       cache: "no-store"
     });
     if (!response.ok) throw new Error("HTTP " + response.status);
@@ -73,9 +77,9 @@ async function requestEndpoint(endpoint, query, signal) {
     return data;
   } finally {
     clearTimeout(timeout);
+    parentSignal.removeEventListener("abort", abortFromParent);
   }
 }
-
 async function firstAvailableEndpoint(query) {
   const controllers = ENDPOINTS.map(() => new AbortController());
   const attempts = ENDPOINTS.map((endpoint, index) => new Promise((resolve, reject) => {
