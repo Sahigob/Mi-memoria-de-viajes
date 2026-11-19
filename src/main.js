@@ -40,8 +40,10 @@ function renderPlace(place, showDistance = false) {
   const note = place.notes ? `<div class="place-note">${escapeHtml(place.notes)}</div>` : "";
   const address = place.address ? escapeHtml(place.address) : escapeHtml(place.city || "");
   const menu = place.menuUrl ? `<a class="menu-link" href="${escapeHtml(place.menuUrl)}" target="_blank" rel="noopener noreferrer">☷ Ver carta</a>` : "";
+  const statusLabels = { planned: "Por visitar", visited: "Visitado", favorite: "Favorito" };
+  const status = statusLabels[place.status || "visited"] || "Visitado";
   const route = `<button class="route-btn" type="button" data-route="${escapeHtml(place.id)}">↗ Ir hasta allí</button>`;
-  return `<article class="place-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${address}</span><span>·</span><span>${getRatingLabel(place.rating)}</span></div>${note}${menu}</div>${distance}<div class="place-actions">${route}</div></article>`;
+  return `<article class="place-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${address}</span><span>·</span><span>${getRatingLabel(place.rating)}</span><span class="place-status ${place.status || "visited"}">${status}</span></div>${note}${menu}</div>${distance}<div class="place-actions">${route}</div></article>`;
 }
 function renderNearby(category = activeCategory) {
   activeCategory = category;
@@ -55,9 +57,11 @@ function renderNearby(category = activeCategory) {
 function renderAllPlaces() {
   const query = ($("#place-search").value || "").toLocaleLowerCase("es");
   const category = $("#place-category-filter").value;
+  const status = $("#place-status-filter").value;
   const filtered = places.filter(place => {
     const searchable = `${place.name} ${place.city} ${place.address} ${place.notes}`.toLocaleLowerCase("es");
-    return searchable.includes(query) && (category === "all" || place.category === category);
+    const placeStatus = place.status || "visited";
+    return searchable.includes(query) && (category === "all" || place.category === category) && (status === "all" || placeStatus === status);
   });
   $("#places-summary").innerHTML = `<div class="summary-chip"><strong>${places.length}</strong> lugares guardados</div><div class="summary-chip"><strong>${new Set(places.map(p=>p.city)).size}</strong> ciudades</div>`;
   $("#all-places").innerHTML = filtered.length ? filtered.map(place => renderPlace(place)).join("") : `<div class="empty-state"><strong>No hay resultados</strong>Prueba otra búsqueda o guarda un nuevo lugar.</div>`;
@@ -161,6 +165,7 @@ function prepareSaveDiscovery(index) {
   form.elements.lat.value = place.lat.toFixed(6);
   form.elements.lng.value = place.lng.toFixed(6);
   form.elements.rating.value = "like";
+  form.elements.status.value = "planned";
   form.elements.menuUrl.value = "";
   form.elements.notes.value = "Encontrado mediante OpenStreetMap. Añade aquí tu comentario personal.";
   $("#place-dialog").showModal();
@@ -184,6 +189,7 @@ function bindEvents() {
   $("#add-place-top").addEventListener("click", () => $("#place-dialog").showModal());
   $("#place-search").addEventListener("input", renderAllPlaces);
   $("#place-category-filter").addEventListener("change", renderAllPlaces);
+  $("#place-status-filter").addEventListener("change", renderAllPlaces);
   $("#close-dialog").addEventListener("click", () => $("#place-dialog").close());
   $("#cancel-dialog").addEventListener("click", () => $("#place-dialog").close());
   $("#use-current-location").addEventListener("click", async () => {
@@ -201,7 +207,7 @@ function bindEvents() {
     const lat = data.get("lat") === "" ? null : Number(data.get("lat"));
     const lng = data.get("lng") === "" ? null : Number(data.get("lng"));
     if ((lat === null) !== (lng === null)) { toast("Introduce las dos coordenadas o deja ambas vacías."); return; }
-    places.unshift({ id: `temp-${Date.now()}`, name: String(data.get("name")).trim(), category: data.get("category"), city: String(data.get("city")).trim(), address: String(data.get("address")).trim(), lat, lng, rating: data.get("rating"), notes: String(data.get("notes")).trim(), menuUrl: String(data.get("menuUrl") || "").trim(), date: new Date().toISOString().slice(0,10) });
+    places.unshift({ id: `temp-${Date.now()}`, name: String(data.get("name")).trim(), category: data.get("category"), city: String(data.get("city")).trim(), address: String(data.get("address")).trim(), lat, lng, rating: data.get("rating"), status: data.get("status") || "visited", notes: String(data.get("notes")).trim(), menuUrl: String(data.get("menuUrl") || "").trim(), date: new Date().toISOString().slice(0,10) });
     form.reset(); $("#place-dialog").close(); renderNearby("all"); renderAllPlaces(); renderCities();
     toast("Lugar añadido temporalmente a Mis sitios.");
   });
