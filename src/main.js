@@ -117,6 +117,7 @@ function renderDiscovery() {
   const container = $("#discovery-results");
   if (!discoveryResults.length) {
     container.innerHTML = `<div class="empty-state"><strong>No hay establecimientos para mostrar</strong>Prueba con otro radio o categoría, o busca en otra zona.</div>`;
+    renderDiscoveryMap();
     return;
   }
   container.innerHTML = discoveryResults.map((place,index) => {
@@ -231,10 +232,62 @@ function init() {
   $("#view-discover .info-card p").textContent = status.message + " Los resultados nuevos se mantendrán separados de tus lugares guardados.";
   $("#view-discover .discover-panel p").textContent = "Busca restaurantes, cafeterías, alojamientos, tiendas, gasolineras y otros lugares reales alrededor de ti.";
   $("#view-discover .discover-panel button").textContent = "⌖ Detectar ubicación y buscar";
+
+  const layout = document.createElement("div");
+  layout.className = "discovery-layout";
+
   const controls = document.createElement("div");
   controls.className = "discovery-toolbar";
-  controls.innerHTML = `<label>Tipo de lugar<select id="discovery-category"><option value="all">Todas las categorías</option><option value="comer">Restaurantes y bares</option><option value="cafe">Cafeterías y panaderías</option><option value="dormir">Alojamientos</option><option value="comprar">Tiendas</option><option value="gasolinera">Gasolineras</option><option value="otros">Otros lugares</option></select></label><label>Distancia<select id="discovery-radius"><option value="1">1 km</option><option value="3">3 km</option><option value="5" selected>5 km</option><option value="10">10 km</option><option value="20">20 km</option><option value="30">30 km</option></select></label><button class="primary-btn" id="search-discovery-btn">Buscar establecimientos</button></div><p class="discovery-status" id="discovery-status" aria-live="polite">Pulsa el botón para consultar los establecimientos cercanos.</p><div class="map-section"><div class="map-section-heading"><strong>Mapa de establecimientos</strong><span>Selecciona un marcador para ver el lugar.</span></div><div id="discovery-map" aria-label="Mapa de establecimientos cercanos"></div></div><div class="discovery-results place-list" id="discovery-results"></div><p class="osm-attribution">Datos cartográficos y de establecimientos: © OpenStreetMap contributors.</p>`;
-  $("#view-discover .info-card").before(controls);
-  bindEvents(); renderNearby("all"); renderAllPlaces(); renderCities();
+  controls.innerHTML = `
+    <label>Tipo de lugar
+      <select id="discovery-category">
+        <option value="all">Todas las categorías</option>
+        <option value="comer">Restaurantes y bares</option>
+        <option value="cafe">Cafeterías y panaderías</option>
+        <option value="dormir">Alojamientos</option>
+        <option value="comprar">Tiendas</option>
+        <option value="gasolinera">Gasolineras</option>
+        <option value="otros">Otros lugares</option>
+      </select>
+    </label>
+    <label>Distancia
+      <select id="discovery-radius">
+        <option value="1">1 km</option><option value="3">3 km</option>
+        <option value="5" selected>5 km</option><option value="10">10 km</option>
+        <option value="20">20 km</option><option value="30">30 km</option>
+      </select>
+    </label>
+    <button class="primary-btn" id="search-discovery-btn">Buscar establecimientos</button>`;
+
+  const statusLine = document.createElement("p");
+  statusLine.className = "discovery-status";
+  statusLine.id = "discovery-status";
+  statusLine.setAttribute("aria-live", "polite");
+  statusLine.textContent = "Pulsa el botón para consultar los establecimientos cercanos.";
+
+  const mapSection = document.createElement("section");
+  mapSection.className = "map-section";
+  mapSection.innerHTML = `
+    <div class="map-section-heading">
+      <strong>Mapa de establecimientos</strong>
+      <span>Selecciona un marcador para ver el lugar.</span>
+    </div>
+    <div id="discovery-map" aria-label="Mapa de establecimientos cercanos"></div>`;
+
+  const results = document.createElement("div");
+  results.className = "discovery-results place-list";
+  results.id = "discovery-results";
+
+  const attribution = document.createElement("p");
+  attribution.className = "osm-attribution";
+  attribution.textContent = "Datos cartográficos y de establecimientos: © OpenStreetMap contributors.";
+
+  layout.append(controls, statusLine, mapSection, results, attribution);
+  $("#view-discover .info-card").before(layout);
+
+  bindEvents();
+  renderNearby("all");
+  renderAllPlaces();
+  renderCities();
 }
 init();
