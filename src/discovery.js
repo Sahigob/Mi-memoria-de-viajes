@@ -1,7 +1,8 @@
 import { distanceKm } from "./location.js";
 
 // Instancias públicas y gratuitas de Overpass (OpenStreetMap).
-// Se prueban con un pequeño escalonado: se utiliza la primera que responde.
+// Se utiliza la primera que responde para evitar multiplicar las consultas
+// a los servidores públicos. La consulta ya no limita la respuesta a 80 sitios.
 const ENDPOINTS = [
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
@@ -10,15 +11,15 @@ const ENDPOINTS = [
 ];
 
 const FILTERS = {
-  comer: ['nwr["amenity"~"^(restaurant|bar|pub|fast_food|food_court)$"]["name"]'],
+  comer: ['nwr["amenity"~"^(restaurant|bar|pub|fast_food|food_court)$"]'],
   cafe: [
-    'nwr["amenity"~"^(cafe|ice_cream)$"]["name"]',
-    'nwr["shop"~"^(bakery|pastry|confectionery)$"]["name"]'
+    'nwr["amenity"~"^(cafe|ice_cream)$"]',
+    'nwr["shop"~"^(bakery|pastry|confectionery)$"]'
   ],
-  dormir: ['nwr["tourism"~"^(hotel|hostel|guest_house|motel|apartment)$"]["name"]'],
-  comprar: ['nwr["shop"]["name"]'],
-  gasolinera: ['nwr["amenity"="fuel"]["name"]'],
-  otros: ['nwr["tourism"~"^(museum|attraction|zoo|theme_park|gallery)$"]["name"]']
+  dormir: ['nwr["tourism"~"^(hotel|hostel|guest_house|motel|apartment)$"]'],
+  comprar: ['nwr["shop"]'],
+  gasolinera: ['nwr["amenity"="fuel"]'],
+  otros: ['nwr["tourism"~"^(museum|attraction|zoo|theme_park|gallery)$"]']
 };
 
 export function discoveryStatus() {
@@ -54,7 +55,7 @@ function coordinatesOf(element) {
 
 async function requestEndpoint(endpoint, query, parentSignal) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 20000);
   const abortFromParent = () => controller.abort();
 
   if (parentSignal.aborted) controller.abort();
@@ -80,6 +81,7 @@ async function requestEndpoint(endpoint, query, parentSignal) {
     parentSignal.removeEventListener("abort", abortFromParent);
   }
 }
+
 async function firstAvailableEndpoint(query) {
   const controllers = ENDPOINTS.map(() => new AbortController());
   const attempts = ENDPOINTS.map((endpoint, index) => new Promise((resolve, reject) => {
@@ -117,11 +119,14 @@ export async function searchNearbyEstablishments(location, radiusKm = 5, categor
   if (!selectors.length) throw new Error("La categoría seleccionada no es válida.");
 
   const query = [
-    "[out:json][timeout:12];",
+    "[out:json][timeout:25];",
     "(",
     selectors.map(selector => selector + "(around:" + radius + "," + location.lat + "," + location.lng + ");").join("\n"),
     ");",
-    "out center tags 80;"
+    // IMPORTANTE: no añadir un límite numérico aquí.
+    // "out center tags 80;" truncaba las búsquedas grandes a 80 elementos,
+    // por lo que un local cercano podía desaparecer al ampliar el radio.
+    "out center tags;"
   ].join("\n");
 
   const data = await firstAvailableEndpoint(query);
@@ -129,7 +134,7 @@ export async function searchNearbyEstablishments(location, radiusKm = 5, categor
 
   for (const element of data.elements) {
     const tags = element.tags || {};
-    const name = tags.name || tags["name:es"] || tags.brand;
+    const name = tags.name || tags["name:es"] || tags.brand || tags.operator;
     const coordinates = coordinatesOf(element);
     if (!name || !coordinates) continue;
 
