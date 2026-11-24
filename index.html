@@ -143,6 +143,22 @@
       <p class="form-footnote">Los cambios se guardarán en tu cuenta privada.</p>
     </form>
   </dialog>
+  <dialog id="shared-place-dialog" class="place-dialog shared-place-dialog">
+    <div class="shared-place-content">
+      <div class="dialog-header">
+        <div><p class="eyebrow">TE HAN COMPARTIDO UN LUGAR</p><h2 id="shared-place-title">Establecimiento</h2></div>
+        <button type="button" class="close-btn" id="close-shared-place-btn" aria-label="Cerrar">×</button>
+      </div>
+      <p id="shared-place-category" class="shared-place-category"></p>
+      <p id="shared-place-address" class="muted"></p>
+      <div class="shared-place-note" id="shared-place-notes"></div>
+      <p class="form-footnote">Al guardarlo se creará una copia privada en tu cuenta. Los cambios que hagas no modificarán el original.</p>
+      <div class="dialog-actions">
+        <button type="button" class="outline-btn" id="close-shared-place-secondary">Cerrar</button>
+        <button type="button" class="primary-btn" id="save-shared-place-btn">Guardar en mis locales</button>
+      </div>
+    </div>
+  </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script type="module" src="./src/main.js"></script>
