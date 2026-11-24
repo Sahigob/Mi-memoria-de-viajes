@@ -102,10 +102,20 @@ function cleanSharedPlace(place) {
 async function sharePlace(placeId) {
   const place = places.find(item => String(item.id) === String(placeId));
   if (!place || !currentUser) return;
+
+  const enteredEmail = window.prompt("Introduce el correo del usuario registrado con quien quieres compartir este lugar:");
+  if (enteredEmail === null) return;
+  const recipientEmail = enteredEmail.trim().toLowerCase();
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipientEmail)) {
+    toast("Introduce un correo electrónico válido.");
+    return;
+  }
+
   try {
     const shareRef = doc(collection(db, "sharedPlaces"));
     await setDoc(shareRef, {
       ownerUid: currentUser.uid,
+      recipientEmail,
       place: cleanSharedPlace(place),
       createdAt: serverTimestamp()
     });
