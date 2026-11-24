@@ -36,3 +36,14 @@
 .logout-btn{padding:8px 12px;font-size:11px}
 .auth-dot{background:#2f9660}
 @media(max-width:700px){.auth-card{padding:26px 22px}.auth-user-email{max-width:34vw;font-size:10px}.logout-btn{padding:8px;font-size:10px}}
+
+
+/* Compartir establecimientos mediante enlace privado */
+.place-inline-actions{display:flex;gap:8px;margin-top:9px}
+.place-share-btn{border:1px solid #dce9df;background:#f5faf6;color:var(--green-dark);border-radius:8px;padding:7px 10px;font-size:11px;font-weight:700}
+.place-share-btn:hover{background:#eaf4ed;border-color:#a8c5b2}
+.shared-place-dialog .shared-place-content{padding:25px;display:grid;gap:12px}
+.shared-place-dialog .dialog-header{margin-bottom:2px}
+.shared-place-category{font-size:12px;font-weight:700;color:var(--green);margin:0}
+.shared-place-note{background:#f7f9f7;border:1px solid var(--line);border-radius:10px;padding:13px;color:#58675e;font-size:12px;line-height:1.55;white-space:pre-wrap}
+@media(max-width:700px){.place-inline-actions{margin-top:8px}.place-share-btn{padding:7px 9px}.shared-place-dialog .shared-place-content{padding:19px}.shared-place-dialog .dialog-actions{display:grid;grid-template-columns:1fr 1.5fr}}
