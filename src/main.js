@@ -1,6 +1,6 @@
 import { categories } from "./demo-data.js";
 import { getCurrentPosition } from "./location.js";
-import { auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from "./firebase.js";
+import { auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut, collection, getDocs, getDoc, addDoc, setDoc, updateDoc, deleteDoc, doc, serverTimestamp } from "./firebase.js";
 import { getNearbyPlaces, getCategoryLabel, getRatingLabel, mapUrl, routeUrl } from "./places.js";
 import { groupPlacesByCity } from "./cities.js";
 import { discoveryStatus, searchNearbyEstablishments } from "./discovery.js";
@@ -15,6 +15,8 @@ let discoveryResults = [];
 let discoveryMap = null;
 let discoveryMarkers = [];
 let toastTimer;
+let pendingShareId = new URLSearchParams(window.location.search).get("share");
+let pendingSharedPlace = null;
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const views = ["nearby","places","discover","cities","settings"];
@@ -48,7 +50,8 @@ function renderPlace(place, showDistance = false) {
   const route = `<button class="route-btn" type="button" data-route="${escapeHtml(place.id)}">↗ Ir hasta allí</button>`;
   const edit = `<button class="place-edit-btn" type="button" data-edit-place="${escapeHtml(place.id)}" aria-label="Editar ${escapeHtml(place.name)}">✎ Editar</button>`;
   const remove = `<button class="place-delete-btn" type="button" data-delete-place="${escapeHtml(place.id)}" aria-label="Eliminar ${escapeHtml(place.name)}">Eliminar</button>`;
-  return `<article class="place-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${address}</span><span>·</span><span>${getRatingLabel(place.rating)}</span><span class="place-status ${place.status || "visited"}">${status}</span></div>${note}${menu}</div>${distance}<div class="place-actions">${route}${edit}${remove}</div></article>`;
+  const share = `<button class="place-share-btn" type="button" data-share-place="${escapeHtml(place.id)}">↗ Compartir</button>`;
+  return `<article class="place-card"><div class="place-symbol">${category.icon}</div><div class="place-info"><strong>${escapeHtml(place.name)}</strong><div class="place-meta"><span>${category.label}</span><span>·</span><span>${address}</span><span>·</span><span>${getRatingLabel(place.rating)}</span><span class="place-status ${place.status || "visited"}">${status}</span></div>${note}${menu}<div class="place-inline-actions">${share}</div></div>${distance}<div class="place-actions">${route}${edit}${remove}</div></article>`;
 }
 function renderNearby(category = activeCategory) {
   activeCategory = category;
@@ -78,6 +81,130 @@ function renderCities() {
 function userPlacesCollection() {
   if (!currentUser) throw new Error("Debes iniciar sesión para acceder a tus establecimientos.");
   return collection(db, "users", currentUser.uid, "places");
+}
+
+function cleanSharedPlace(place) {
+  const coordinate = value => value == null || value === "" ? null : Number(value);
+  return {
+    name: String(place.name || ""),
+    category: String(place.category || "otros"),
+    city: String(place.city || ""),
+    address: String(place.address || ""),
+    lat: coordinate(place.lat),
+    lng: coordinate(place.lng),
+    rating: String(place.rating || "ok"),
+    status: String(place.status || "visited"),
+    notes: String(place.notes || ""),
+    menuUrl: String(place.menuUrl || "")
+  };
+}
+
+async function sharePlace(placeId) {
+  const place = places.find(item => String(item.id) === String(placeId));
+  if (!place || !currentUser) return;
+  try {
+    const shareRef = doc(collection(db, "sharedPlaces"));
+    await setDoc(shareRef, {
+      ownerUid: currentUser.uid,
+      place: cleanSharedPlace(place),
+      createdAt: serverTimestamp()
+    });
+    const url = new URL(window.location.href);
+    url.searchParams.set("share", shareRef.id);
+    url.hash = "";
+    const shareUrl = url.toString();
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Un lugar de Memoria de Viajes",
+          text: "Te comparto este establecimiento. Ábrelo para verlo y guardarlo en tus locales.",
+          url: shareUrl
+        });
+        toast("Enlace preparado para compartir.");
+        return;
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+      }
+    }
+
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareUrl);
+      toast("Enlace copiado. Ya puedes enviárselo.");
+    } else {
+      window.prompt("Copia este enlace y envíaselo a la otra persona:", shareUrl);
+    }
+  } catch (error) {
+    toast(authErrorMessage(error));
+  }
+}
+
+async function openSharedPlace(shareId) {
+  if (!currentUser || !shareId) return;
+  try {
+    const snapshot = await getDoc(doc(db, "sharedPlaces", shareId));
+    if (!snapshot.exists()) {
+      toast("Este enlace no existe o no está disponible.");
+      return;
+    }
+    const data = snapshot.data();
+    if (!data.place || typeof data.place.name !== "string" || !data.place.name.trim()) {
+      toast("El establecimiento compartido no contiene datos válidos.");
+      return;
+    }
+    pendingSharedPlace = { ...cleanSharedPlace(data.place), shareId };
+    $("#shared-place-title").textContent = pendingSharedPlace.name;
+    $("#shared-place-category").textContent = getCategoryLabel(pendingSharedPlace.category);
+    $("#shared-place-address").textContent = [pendingSharedPlace.address, pendingSharedPlace.city].filter(Boolean).join(" · ") || "Dirección no indicada";
+    $("#shared-place-notes").textContent = pendingSharedPlace.notes || "No se ha añadido ningún comentario.";
+    const alreadySaved = places.some(place => place.sharedFrom === shareId);
+    const saveButton = $("#save-shared-place-btn");
+    saveButton.disabled = alreadySaved;
+    saveButton.textContent = alreadySaved ? "Ya está en mis locales" : "Guardar en mis locales";
+    $("#shared-place-dialog").showModal();
+  } catch (error) {
+    toast(authErrorMessage(error));
+  }
+}
+
+async function saveSharedPlace() {
+  if (!currentUser || !pendingSharedPlace) return;
+  const shareId = pendingSharedPlace.shareId;
+  if (places.some(place => place.sharedFrom === shareId)) {
+    toast("Este establecimiento ya está guardado en tus locales.");
+    $("#shared-place-dialog").close();
+    return;
+  }
+
+  const button = $("#save-shared-place-btn");
+  button.disabled = true;
+  button.textContent = "Guardando…";
+  try {
+    const data = cleanSharedPlace(pendingSharedPlace);
+    const date = new Date().toISOString().slice(0, 10);
+    const created = {
+      ...data,
+      date,
+      sharedFrom: shareId,
+      createdAt: serverTimestamp()
+    };
+    const reference = await addDoc(userPlacesCollection(), created);
+    places.unshift({ ...data, id: reference.id, date, sharedFrom: shareId });
+    renderNearby("all");
+    renderAllPlaces();
+    renderCities();
+    $("#shared-place-dialog").close();
+    pendingSharedPlace = null;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("share");
+    window.history.replaceState({}, "", url);
+    pendingShareId = null;
+    toast("Copia guardada en tus locales. Ya puedes editarla sin afectar al original.");
+  } catch (error) {
+    toast(authErrorMessage(error));
+    button.disabled = false;
+    button.textContent = "Guardar en mis locales";
+  }
 }
 async function loadUserPlaces() {
   if (!currentUser) return;
@@ -258,6 +385,9 @@ function bindEvents() {
       button.textContent = "Entrar";
     }
   });
+  $("#close-shared-place-btn").addEventListener("click", () => $("#shared-place-dialog").close());
+  $("#close-shared-place-secondary").addEventListener("click", () => $("#shared-place-dialog").close());
+  $("#save-shared-place-btn").addEventListener("click", saveSharedPlace);
   $("#logout-btn").addEventListener("click", async () => {
     try { await signOut(auth); }
     catch (error) { toast(authErrorMessage(error)); }
@@ -317,6 +447,8 @@ function bindEvents() {
     }
   });
   document.addEventListener("click", event => {
+    const shareButton = event.target.closest("[data-share-place]");
+    if (shareButton) { sharePlace(shareButton.dataset.sharePlace); return; }
     const editButton = event.target.closest("[data-edit-place]");
     if (editButton) { openEditPlace(editButton.dataset.editPlace); return; }
     const deleteButton = event.target.closest("[data-delete-place]");
@@ -428,6 +560,7 @@ function init() {
     showAuthenticatedApp(user);
     try {
       await loadUserPlaces();
+      if (pendingShareId) await openSharedPlace(pendingShareId);
     } catch (error) {
       toast(authErrorMessage(error));
     }
