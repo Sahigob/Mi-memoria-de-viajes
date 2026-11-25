@@ -99,16 +99,10 @@ function cleanSharedPlace(place) {
   };
 }
 
-async function ensureUserProfile(user) {
-  const profileRef = doc(db, "appUsers", user.uid);
-  const snapshot = await getDoc(profileRef);
-  if (snapshot.exists()) return snapshot.data();
-  const fallbackName = user.displayName || (user.email ? user.email.split("@")[0] : "Usuario");
-  const enteredName = window.prompt("¿Qué nombre quieres que vean los demás usuarios al compartir contigo?", fallbackName);
-  const displayName = (enteredName || fallbackName).trim().slice(0, 50) || "Usuario";
-  const profile = { uid: user.uid, displayName, createdAt: serverTimestamp() };
-  await setDoc(profileRef, profile);
-  return profile;
+async function isAuthorizedUser(user) {
+  if (!user) return false;
+  const authorization = await getDoc(doc(db, "authorizedUsers", user.uid));
+  return authorization.exists();
 }
 
 let sharingPlaceId = null;
@@ -117,17 +111,18 @@ async function sharePlace(placeId) {
   const place = places.find(item => String(item.id) === String(placeId));
   if (!place || !currentUser) return;
   try {
-    const snapshot = await getDocs(collection(db, "appUsers"));
-    const recipients = snapshot.docs.map(item => item.data())
-      .filter(profile => profile.uid && profile.uid !== currentUser.uid)
-      .sort((a, b) => String(a.displayName || "Usuario").localeCompare(String(b.displayName || "Usuario"), "es"));
+    const snapshot = await getDocs(collection(db, "authorizedUsers"));
+    const recipients = snapshot.docs
+      .filter(item => item.id !== currentUser.uid)
+      .map(item => ({ uid: item.id, displayName: String(item.data().displayName || `Usuario ${item.id.slice(-6)}`) }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, "es"));
     if (!recipients.length) {
-      toast("Todavía no hay otros usuarios disponibles. Los demás usuarios deben entrar una vez en la aplicación.");
+      toast("Todavía no hay otros usuarios autorizados. El administrador debe añadir sus cuentas a la lista de usuarios autorizados.");
       return;
     }
     sharingPlaceId = placeId;
     const select = $("#share-recipient-select");
-    select.innerHTML = recipients.map(profile => `<option value="${escapeHtml(profile.uid)}">${escapeHtml(profile.displayName || "Usuario")}</option>`).join("");
+    select.innerHTML = recipients.map(profile => `<option value="${escapeHtml(profile.uid)}">${escapeHtml(profile.displayName)}</option>`).join("");
     $("#share-place-dialog").showModal();
   } catch (error) { toast(authErrorMessage(error)); }
 }
@@ -590,14 +585,19 @@ function init() {
       renderNearby("all"); renderAllPlaces(); renderCities();
       return;
     }
-    showAuthenticatedApp(user);
     try {
-      try { await ensureUserProfile(user); }
-      catch (profileError) { console.warn('No se pudo preparar el directorio de usuarios; revisa las reglas de Firestore.', profileError); }
+      const authorized = await isAuthorizedUser(user);
+      if (!authorized) {
+        $("#auth-error").textContent = "Esta cuenta todavía no está autorizada. Contacta con el administrador.";
+        await signOut(auth);
+        return;
+      }
+      showAuthenticatedApp(user);
       await loadUserPlaces();
       if (pendingShareId) await openSharedPlace(pendingShareId);
     } catch (error) {
-      toast(authErrorMessage(error));
+      $("#auth-error").textContent = authErrorMessage(error);
+      try { await signOut(auth); } catch (signOutError) { console.warn(signOutError); }
     }
   });
 }
