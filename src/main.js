@@ -602,10 +602,3 @@ function init() {
   });
 }
 init();
-      if (pendingShareId) await openSharedPlace(pendingShareId);
-    } catch (error) {
-      toast(authErrorMessage(error));
-    }
-  });
-}
-init();
