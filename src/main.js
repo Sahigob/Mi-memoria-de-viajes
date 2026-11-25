@@ -99,53 +99,73 @@ function cleanSharedPlace(place) {
   };
 }
 
+async function ensureUserProfile(user) {
+  const profileRef = doc(db, "appUsers", user.uid);
+  const snapshot = await getDoc(profileRef);
+  if (snapshot.exists()) return snapshot.data();
+  const fallbackName = user.displayName || (user.email ? user.email.split("@")[0] : "Usuario");
+  const enteredName = window.prompt("¿Qué nombre quieres que vean los demás usuarios al compartir contigo?", fallbackName);
+  const displayName = (enteredName || fallbackName).trim().slice(0, 50) || "Usuario";
+  const profile = { uid: user.uid, displayName, createdAt: serverTimestamp() };
+  await setDoc(profileRef, profile);
+  return profile;
+}
+
+let sharingPlaceId = null;
+
 async function sharePlace(placeId) {
   const place = places.find(item => String(item.id) === String(placeId));
   if (!place || !currentUser) return;
+  try {
+    const snapshot = await getDocs(collection(db, "appUsers"));
+    const recipients = snapshot.docs.map(item => item.data())
+      .filter(profile => profile.uid && profile.uid !== currentUser.uid)
+      .sort((a, b) => String(a.displayName || "Usuario").localeCompare(String(b.displayName || "Usuario"), "es"));
+    if (!recipients.length) {
+      toast("Todavía no hay otros usuarios disponibles. Los demás usuarios deben entrar una vez en la aplicación.");
+      return;
+    }
+    sharingPlaceId = placeId;
+    const select = $("#share-recipient-select");
+    select.innerHTML = recipients.map(profile => `<option value="${escapeHtml(profile.uid)}">${escapeHtml(profile.displayName || "Usuario")}</option>`).join("");
+    $("#share-place-dialog").showModal();
+  } catch (error) { toast(authErrorMessage(error)); }
+}
 
-  const enteredEmail = window.prompt("Introduce el correo del usuario registrado con quien quieres compartir este lugar:");
-  if (enteredEmail === null) return;
-  const recipientEmail = enteredEmail.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
-    toast("Introduce un correo electrónico válido.");
+async function confirmSharePlace() {
+  const place = places.find(item => String(item.id) === String(sharingPlaceId));
+  const recipientUid = $("#share-recipient-select").value;
+  if (!place || !currentUser || !recipientUid || recipientUid === currentUser.uid) {
+    toast("Selecciona otro usuario para compartir este lugar.");
     return;
   }
-
+  const button = $("#confirm-share-place-btn");
+  button.disabled = true;
+  button.textContent = "Preparando enlace…";
   try {
     const shareRef = doc(collection(db, "sharedPlaces"));
-    await setDoc(shareRef, {
-      ownerUid: currentUser.uid,
-      recipientEmail,
-      place: cleanSharedPlace(place),
-      createdAt: serverTimestamp()
-    });
+    await setDoc(shareRef, { ownerUid: currentUser.uid, recipientUid, place: cleanSharedPlace(place), createdAt: serverTimestamp() });
     const url = new URL(window.location.href);
     url.searchParams.set("share", shareRef.id);
     url.hash = "";
     const shareUrl = url.toString();
-
+    $("#share-place-dialog").close();
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: "Un lugar de Memoria de Viajes",
-          text: "Te comparto este establecimiento. Ábrelo para verlo y guardarlo en tus locales.",
-          url: shareUrl
-        });
+        await navigator.share({ title: "Un lugar de Memoria de Viajes", text: "Te comparto este establecimiento. Ábrelo para verlo y guardarlo en tus locales.", url: shareUrl });
         toast("Enlace preparado para compartir.");
         return;
-      } catch (error) {
-        if (error?.name === "AbortError") return;
-      }
+      } catch (error) { if (error?.name === "AbortError") return; }
     }
-
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(shareUrl);
-      toast("Enlace copiado. Ya puedes enviárselo.");
-    } else {
-      window.prompt("Copia este enlace y envíaselo a la otra persona:", shareUrl);
-    }
-  } catch (error) {
-    toast(authErrorMessage(error));
+      toast("Enlace copiado. Ya puedes enviárselo al usuario seleccionado.");
+    } else { window.prompt("Copia este enlace y envíaselo al usuario seleccionado:", shareUrl); }
+  } catch (error) { toast(authErrorMessage(error)); }
+  finally {
+    button.disabled = false;
+    button.textContent = "Crear enlace y compartir";
+    sharingPlaceId = null;
   }
 }
 
@@ -395,6 +415,9 @@ function bindEvents() {
       button.textContent = "Entrar";
     }
   });
+  $("#share-place-cancel-btn").addEventListener("click", () => $("#share-place-dialog").close());
+  $("#share-place-cancel-secondary").addEventListener("click", () => $("#share-place-dialog").close());
+  $("#confirm-share-place-btn").addEventListener("click", confirmSharePlace);
   $("#close-shared-place-btn").addEventListener("click", () => $("#shared-place-dialog").close());
   $("#close-shared-place-secondary").addEventListener("click", () => $("#shared-place-dialog").close());
   $("#save-shared-place-btn").addEventListener("click", saveSharedPlace);
@@ -569,7 +592,16 @@ function init() {
     }
     showAuthenticatedApp(user);
     try {
+      try { await ensureUserProfile(user); }
+      catch (profileError) { console.warn('No se pudo preparar el directorio de usuarios; revisa las reglas de Firestore.', profileError); }
       await loadUserPlaces();
+      if (pendingShareId) await openSharedPlace(pendingShareId);
+    } catch (error) {
+      toast(authErrorMessage(error));
+    }
+  });
+}
+init();
       if (pendingShareId) await openSharedPlace(pendingShareId);
     } catch (error) {
       toast(authErrorMessage(error));
