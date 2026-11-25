@@ -143,6 +143,14 @@
       <p class="form-footnote">Los cambios se guardarán en tu cuenta privada.</p>
     </form>
   </dialog>
+  <dialog id="share-place-dialog" class="place-dialog">
+    <div>
+      <div class="dialog-header"><div><p class="eyebrow">COMPARTIR UN RECUERDO</p><h2>¿Con quién quieres compartirlo?</h2></div><button type="button" class="close-btn" id="share-place-cancel-btn" aria-label="Cerrar">×</button></div>
+      <label>Usuario<select id="share-recipient-select" required></select></label>
+      <p class="form-footnote">Solo la persona seleccionada podrá abrir el enlace. Después podrá guardar una copia independiente en sus locales.</p>
+      <div class="dialog-actions"><button type="button" class="outline-btn" id="share-place-cancel-secondary">Cancelar</button><button type="button" class="primary-btn" id="confirm-share-place-btn">Crear enlace y compartir</button></div>
+    </div>
+  </dialog>
   <dialog id="shared-place-dialog" class="place-dialog shared-place-dialog">
     <div class="shared-place-content">
       <div class="dialog-header">
