@@ -106,7 +106,7 @@ async function sharePlace(placeId) {
   const enteredEmail = window.prompt("Introduce el correo del usuario registrado con quien quieres compartir este lugar:");
   if (enteredEmail === null) return;
   const recipientEmail = enteredEmail.trim().toLowerCase();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipientEmail)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
     toast("Introduce un correo electrónico válido.");
     return;
   }
