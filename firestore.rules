@@ -1,34 +1,51 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isAuthorizedUser(userId) {
+      return request.auth != null
+        && request.auth.uid == userId
+        && exists(/databases/$(database)/documents/authorizedUsers/$(userId));
+    }
+
+    // Solo las cuentas incluidas manualmente por el administrador pueden usar la app.
+    // Los usuarios autorizados pueden consultar el directorio, pero no modificarlo.
+    match /authorizedUsers/{userId} {
+      allow get, list: if request.auth != null
+        && exists(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid));
+      allow create, update, delete: if false;
+    }
+
+    // Cada usuario solo puede leer y modificar sus propios establecimientos,
+    // y únicamente si el administrador ha autorizado previamente su UID.
     match /users/{userId}/places/{placeId} {
-      allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, create, update, delete: if isAuthorizedUser(userId);
     }
-    // Directorio mínimo: UID y nombre visible, sin direcciones de correo.
-    match /appUsers/{userId} {
-      allow get, list: if request.auth != null;
-      allow create: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(["uid", "displayName", "createdAt"])
-        && request.resource.data.uid == userId
-        && request.resource.data.displayName is string;
-      allow update: if request.auth != null
-        && request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["displayName", "updatedAt"])
-        && request.resource.data.displayName is string;
-      allow delete: if false;
-    }
-    // Solo la cuenta destinataria puede abrir un enlace compartido.
+
+    // El enlace solo puede crearlo una cuenta autorizada para otra cuenta autorizada.
+    // Solo el destinatario indicado puede leerlo. El documento es inmutable.
     match /sharedPlaces/{shareId} {
-      allow get: if request.auth != null && request.auth.uid == resource.data.recipientUid;
+      allow get: if request.auth != null
+        && request.auth.uid == resource.data.recipientUid
+        && exists(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid));
       allow list: if false;
       allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(["ownerUid", "recipientUid", "place", "createdAt"])
         && request.resource.data.ownerUid == request.auth.uid
+        && exists(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid))
         && request.resource.data.recipientUid is string
         && request.resource.data.recipientUid != request.auth.uid
-        && request.resource.data.place is map;
+        && exists(/databases/$(database)/documents/authorizedUsers/$(request.resource.data.recipientUid))
+        && request.resource.data.place is map
+        && request.resource.data.place.keys().hasOnly(["name", "category", "city", "address", "lat", "lng", "rating", "status", "notes", "menuUrl"])
+        && request.resource.data.place.name is string
+        && request.resource.data.place.name.size() > 0;
       allow update, delete: if false;
     }
-    match /{document=**} { allow read, write: if false; }
+
+    // Cualquier otra ruta queda cerrada.
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
